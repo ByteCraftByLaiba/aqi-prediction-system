@@ -14,19 +14,22 @@ An end-to-end **Air Quality Index (AQI) forecasting pipeline** that:
 ```
 
 .
-├── datasets\_per\_target/      # CSV datasets (one per target variable)
+├── datasets_per_target/      # CSV datasets (one per target variable)
 ├── models/                   # Saved model files (.joblib) + metrics.json
 │   ├── shap/                 # SHAP summary CSVs per target
+├── app/
+│   ├── __init__.py   # Collect & update latest data (sliding window)
+│   ├── main.py           # Train all targets with AutoML pipeline
+│   ├── utils.py              # Train all targets sequentially
 ├── scripts/
-│   ├── data\_collect\_update.py   # Collect & update latest data (sliding window)
-│   ├── train\_daily.py           # Train all targets with AutoML pipeline
-│   ├── main\_single.py           # Train one target at a time
-│   ├── main\_all.py              # Train all targets sequentially
-├── model\_pipeline.py         # AutoMLPipeline implementation
+│   ├── data_collect_update.py   # Collect & update latest data (sliding window)
+│   ├── train_daily.py           # Train all targets with AutoML pipeline
+│   ├── automl_pipeline.py 
+├── model_pipeline.py         # AutoMLPipeline implementation
 ├── requirements.txt
 └── .github/
-└── workflows/
-└── daily\_pipeline.yml   # GitHub Actions daily retrain workflow
+     └── workflows/
+         └── daily_pipeline.yml   # GitHub Actions daily retrain workflow
 
 ````
 
@@ -146,20 +149,6 @@ prediction = model.predict(X)
 
 ---
 
-## 🔒 Secrets & Environment Variables
-
-If your data collection script requires API keys:
-
-* Add them in **Settings → Secrets and variables → Actions** as `MY_API_KEY`.
-* Reference them in the workflow step:
-
-```yaml
-env:
-  API_KEY: ${{ secrets.MY_API_KEY }}
-```
-
----
-
 ## 🛠 Maintenance Tips
 
 * **Change retrain schedule**: Edit `cron` in `.github/workflows/daily_pipeline.yml`.
@@ -179,6 +168,6 @@ env:
 
 ## 📜 License
 
-MIT License © 2025 \Laiba Shahab
+MIT License © 2025 Laiba Shahab
 
 ```
