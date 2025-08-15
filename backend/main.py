@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from utils import (
+from .utils import (
     load_raw,                 # merged hourly df with 'time'
     build_latest_feature_row, # returns 1-row DataFrame for FEATURES (no NaNs)
     epa_cat_pm25, epa_cat_pm10, worst_category
