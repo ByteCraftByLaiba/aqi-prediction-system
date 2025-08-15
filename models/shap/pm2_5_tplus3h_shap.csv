@@ -1,0 +1,13 @@
+feature,mean_abs_shap
+num__pm2_5_avg_3h,6.138109684569951
+num__pm2_5_change_rate,5.862970695099659
+num__humidity_pm2_5,5.160072161700058
+num__temperature_2m_lag_3h,4.883167302347905
+num__month_cos,4.731300420046774
+num__pm2_5_max_12h,4.110204162148388
+num__temperature_2m,3.659781944691259
+num__pm2_5_max_6h,3.5223988117405742
+num__relative_humidity_2m_lag_3h,3.1178706971309076
+num__pm2_5_lag_1h,2.9926177045242763
+num__nitrogen_dioxide,2.962926186619974
+num__ozone,2.605568578390089
