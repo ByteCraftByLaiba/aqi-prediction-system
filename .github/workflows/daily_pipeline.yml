@@ -55,17 +55,14 @@ jobs:
             datasets_per_target/**
           retention-days: 7
 
-      # --- OPTIONAL: commit back updated CSVs/models/metrics ---
-      # - name: Commit and push changes
-      #   if: ${{ github.event_name != 'pull_request' }}
-      #   run: |
-      #     git config user.name  "github-actions"
-      #     git config user.email "actions@github.com"
-      #     git add -A
-      #     if git diff --cached --quiet; then
-      #       echo "No changes to commit."
-      #     else
-      #       git pull --rebase
-      #       git commit -m "Daily refresh $(date -u +'%Y-%m-%d')"
+    # In daily_pipeline.yml (last step)
+    - name: Commit and push
+      run: |
+        git config user.name "github-actions"
+        git config user.email "actions@github.com"
+        git add data models datasets_per_target
+        git commit -m "Daily refresh $(date -u +'%Y-%m-%d')" || echo "No changes to commit"
+        git push
+
       #       git push
       #     fi
