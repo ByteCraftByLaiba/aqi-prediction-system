@@ -14,7 +14,7 @@ from .utils import (
     build_latest_feature_row, to_json_safe,
     safe_name, ensure_target, features_path,
     model_path_for_target, _try_load_json, init_or_reload,
-    FEATURES, MODELS
+    FEATURES, MODELS, RAW_DF
 )
 from backend.eda_schema import EDAFrame
 
