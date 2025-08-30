@@ -1,9 +1,6 @@
 # app/main.py
 import os
-import json
-import math
 from pathlib import Path
-from typing import Tuple, Dict, List, Any, Optional
 
 import joblib
 import numpy as np
@@ -13,15 +10,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .utils import (
-    load_raw,                 # merged hourly df with 'time'
-    build_latest_feature_row, # returns 1-row DataFrame for FEATURES (no NaNs)
-    epa_cat_pm25, epa_cat_pm10, worst_category
+    epa_cat_pm25, epa_cat_pm10, load_raw,
+    build_latest_feature_row, to_json_safe,
+    safe_name, ensure_target, features_path,
+    model_path_for_target, _try_load_json, init_or_reload,
+    FEATURES, MODELS
 )
+from backend.eda_schema import EDAFrame
 
 # ---------- paths ----------
 BASE_DIR   = Path(__file__).resolve().parents[1]
 MODELS_DIR = BASE_DIR / "models"
 DATA_DIR   = BASE_DIR / "data"
+DST_DIR  = BASE_DIR / "datasets_per_target"
 
 TARGETS: set[str] = {"pm2_5_t+3h","pm2_5_t+6h","pm10_t+3h","pm10_t+6h"}
 
@@ -33,131 +34,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ---------------- Globals ----------------
-MODELS: Dict[str, Any] = {}          # tgt -> loaded estimator or bundle
-FEATURES: List[str] = []             # ordered feature list used by training
-RAW_DF: Optional[pd.DataFrame] = None
-
-# ---------------- JSON safety helpers ----------------
-def _to_json_safe_scalar(x):
-    if isinstance(x, (float, np.floating)):
-        return float(x) if math.isfinite(float(x)) else None
-    if isinstance(x, (int, np.integer)):
-        return int(x)
-    if x is None:
-        return None
-    if isinstance(x, (str, bool, np.bool_)):
-        return x
-    try:
-        v = float(x)
-        return v if math.isfinite(v) else None
-    except Exception:
-        return None
-
-def to_json_safe(obj):
-    if isinstance(obj, dict):
-        return {k: to_json_safe(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [to_json_safe(v) for v in obj]
-    if isinstance(obj, tuple):
-        return tuple(to_json_safe(v) for v in obj)
-    if isinstance(obj, (pd.Series,)):
-        return [to_json_safe(v) for v in obj.tolist()]
-    if isinstance(obj, (pd.DataFrame,)):
-        df = obj.replace([np.inf, -np.inf], np.nan)
-        df = df.where(pd.notnull(df), None)
-        return to_json_safe(df.to_dict("records"))
-    return _to_json_safe_scalar(obj)
-
-# ---------------- helpers ----------------
-def safe_name(target: str) -> str:
-    return target.replace("+", "plus").replace(" ", "_")
-
-def ensure_target(t: str) -> str:
-    if t not in TARGETS:
-        raise HTTPException(status_code=400, detail=f"Invalid target: {t}")
-    return t
-
-def _features_paths() -> list[Path]:
-    # try models/features_used.json then project-root/features_used.json
-    return [MODELS_DIR / "features_used.json", BASE_DIR / "features_used.json"]
-
-def features_path() -> Path:
-    for p in _features_paths():
-        if p.exists():
-            return p
-    # last resort: raise; caller will handle and attempt fallback
-    raise FileNotFoundError("features_used.json not found in models/ or project root")
-
-def model_path_for_target(tgt: str) -> Path:
-    return MODELS_DIR / f"{safe_name(tgt)}_best.joblib"
-
-def _try_load_json(p: Path) -> Optional[dict]:
-    try:
-        return json.load(open(p, "r"))
-    except Exception:
-        return None
-
-# ---------------- Loaders ----------------
-def load_features_list() -> List[str]:
-    # Prefer explicit file(s)
-    for p in _features_paths():
-        d = _try_load_json(p)
-        if d and "features" in d and isinstance(d["features"], list) and len(d["features"]) > 0:
-            return d["features"]
-
-    # Fallback: infer from any per-target dataset (intersection of features across targets)
-    ds_dir = BASE_DIR / "datasets_per_target"
-    if ds_dir.exists():
-        feats_sets = []
-        for tgt in TARGETS:
-            fp = ds_dir / f"{tgt}.csv"
-            if fp.exists():
-                df = pd.read_csv(fp, nrows=1)
-                cols = [c for c in df.columns if c != tgt and c != "time"]
-                feats_sets.append(set(cols))
-        if feats_sets:
-            feats = sorted(list(set.intersection(*feats_sets))) if len(feats_sets) > 1 else sorted(list(feats_sets[0]))
-            if feats:
-                return feats
-
-    raise FileNotFoundError("Unable to determine feature list. Provide models/features_used.json or datasets_per_target/*.csv")
-
-def load_models_from_disk() -> Tuple[Dict[str, Any], List[str]]:
-    loaded: Dict[str, Any] = {}
-    missing: List[str] = []
-    for tgt in TARGETS:
-        mp = model_path_for_target(tgt)
-        if mp.exists():
-            try:
-                loaded[tgt] = joblib.load(mp)
-            except Exception as e:
-                print(f"[API] Failed to load {mp}: {e}")
-                missing.append(str(mp))
-        else:
-            missing.append(str(mp))
-    return loaded, missing
-
-def init_or_reload():
-    global MODELS, FEATURES, RAW_DF
-    # features
-    try:
-        FEATURES[:] = load_features_list()
-    except Exception as e:
-        print(f"[API] Warning: load_features_list failed: {e}")
-        FEATURES.clear()
-    # models
-    MODELS, missing = load_models_from_disk()
-    # raw
-    try:
-        RAW_DF = load_raw(DATA_DIR)
-    except TypeError:
-        RAW_DF = load_raw()
-    except Exception as e:
-        print(f"[API] Warning: load_raw() failed: {e}")
-        RAW_DF = None
-    return missing
 
 # ---------------- Startup ----------------
 @app.on_event("startup")
@@ -325,3 +201,76 @@ def predict(horizon: int = Query(3, enum=[3, 6])):
         out[t] = {"prediction": pred_val, "category": cat}
 
     return JSONResponse(content=to_json_safe(out))
+
+# ---------- EDA endpoints (raw + training) ----------
+def _df_to_records(df: pd.DataFrame, limit: int | None = None) -> tuple[list[str], list[dict]]:
+    d = df.copy()
+    d = d.replace([np.inf, -np.inf], np.nan).where(pd.notnull(d), None)
+    if limit is not None and limit > 0:
+        d = d.tail(limit)
+    return d.columns.tolist(), d.to_dict(orient="records")
+
+@app.get("/eda/raw", response_model=EDAFrame)
+def eda_raw(hours: int = Query(168, ge=1, le=24*90, description="How many hours (max 90 days)")):
+    """Return the merged RAW file produced by your collector."""
+    fp = DATA_DIR / "raw_lahore_hourly.csv"
+    if not fp.exists():
+        raise HTTPException(404, f"Missing {fp}")
+    try:
+        df = pd.read_csv(fp)
+    except Exception as e:
+        raise HTTPException(500, f"Failed reading raw file: {e}")
+
+    if "time" not in df.columns:
+        raise HTTPException(500, "raw_lahore_hourly.csv missing 'time' column")
+
+    df["time"] = pd.to_datetime(df["time"], errors="coerce")
+    df = df.dropna(subset=["time"]).sort_values("time").tail(hours)
+    start = str(df["time"].min()) if not df.empty else None
+    end   = str(df["time"].max()) if not df.empty else None
+    df["time"] = df["time"].astype(str)
+
+    cols, recs = _df_to_records(df)
+    meta = {
+        "source": "Open-Meteo (Air-Quality + Weather), merged by data_collect_update.py",
+        "rows": len(recs),
+        "start": start, "end": end,
+        "note": "Raw snapshot used by the pipeline (no feature engineering)."
+    }
+    return {"meta": meta, "columns": cols, "records": recs}
+
+@app.get("/eda/training", response_model=EDAFrame)
+def eda_training(
+    target: str = Query(..., description="pm2_5_t+3h | pm2_5_t+6h | pm10_t+3h | pm10_t+6h"),
+    limit: int = Query(20000, ge=100, le=200000, description="Tail rows to return"),
+):
+    """Return the feature-engineered training table for a target from datasets_per_target/<target>.csv"""
+    ensure_target(target)  # you already have this helper
+    fp = DST_DIR / f"{target}.csv"
+    if not fp.exists():
+        raise HTTPException(404, f"Missing training dataset: {fp}")
+    try:
+        df = pd.read_csv(fp)
+    except Exception as e:
+        raise HTTPException(500, f"Failed reading dataset: {e}")
+
+    if "time" in df.columns:
+        df["time"] = pd.to_datetime(df["time"], errors="coerce")
+        df = df.dropna(subset=["time"]).sort_values("time")
+        start = str(df["time"].min()); end = str(df["time"].max())
+        df["time"] = df["time"].astype(str)
+    else:
+        start = end = None
+
+    if len(df) > limit:
+        df = df.tail(limit)
+
+    cols, recs = _df_to_records(df)
+    meta = {
+        "source": "datasets_per_target",
+        "target": target,
+        "rows": len(recs),
+        "start": start, "end": end,
+        "note": "Feature-engineered training table for this target (lags/rolls/etc.)."
+    }
+    return {"meta": meta, "columns": cols, "records": recs}
