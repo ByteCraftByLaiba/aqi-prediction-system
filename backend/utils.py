@@ -3,7 +3,25 @@ import os
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from datetime import datetime
+from typing import Tuple, Dict, List, Any, Optional
+import json
+import math
+import joblib
+from fastapi import HTTPException
+
+# ---------- paths ----------
+BASE_DIR   = Path(__file__).resolve().parents[1]
+MODELS_DIR = BASE_DIR / "models"
+DATA_DIR   = BASE_DIR / "data"
+DST_DIR  = BASE_DIR / "datasets_per_target"
+
+TARGETS: set[str] = {"pm2_5_t+3h","pm2_5_t+6h","pm10_t+3h","pm10_t+6h"}
+
+# ---------------- Globals ----------------
+MODELS: Dict[str, Any] = {}          # tgt -> loaded estimator or bundle
+FEATURES: List[str] = []             # ordered feature list used by training
+RAW_DF: Optional[pd.DataFrame] = None
+
 
 # --------- Paths (resolve relative to repo root when not provided) ----------
 def _default_data_dir() -> Path:
@@ -154,3 +172,123 @@ def build_latest_feature_row(features: list[str]) -> pd.DataFrame:
 
     # Fallback: rebuild from raw
     return _rebuild_features_from_raw(data_dir, features)
+
+# ---------------- JSON safety helpers ----------------
+def _to_json_safe_scalar(x):
+    if isinstance(x, (float, np.floating)):
+        return float(x) if math.isfinite(float(x)) else None
+    if isinstance(x, (int, np.integer)):
+        return int(x)
+    if x is None:
+        return None
+    if isinstance(x, (str, bool, np.bool_)):
+        return x
+    try:
+        v = float(x)
+        return v if math.isfinite(v) else None
+    except Exception:
+        return None
+
+def to_json_safe(obj):
+    if isinstance(obj, dict):
+        return {k: to_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [to_json_safe(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(to_json_safe(v) for v in obj)
+    if isinstance(obj, (pd.Series,)):
+        return [to_json_safe(v) for v in obj.tolist()]
+    if isinstance(obj, (pd.DataFrame,)):
+        df = obj.replace([np.inf, -np.inf], np.nan)
+        df = df.where(pd.notnull(df), None)
+        return to_json_safe(df.to_dict("records"))
+    return _to_json_safe_scalar(obj)
+
+# ---------------- helpers ----------------
+def safe_name(target: str) -> str:
+    return target.replace("+", "plus").replace(" ", "_")
+
+def ensure_target(t: str) -> str:
+    if t not in TARGETS:
+        raise HTTPException(status_code=400, detail=f"Invalid target: {t}")
+    return t
+
+def _features_paths() -> list[Path]:
+    # try models/features_used.json then project-root/features_used.json
+    return [MODELS_DIR / "features_used.json", BASE_DIR / "features_used.json"]
+
+def features_path() -> Path:
+    for p in _features_paths():
+        if p.exists():
+            return p
+    # last resort: raise; caller will handle and attempt fallback
+    raise FileNotFoundError("features_used.json not found in models/ or project root")
+
+def model_path_for_target(tgt: str) -> Path:
+    return MODELS_DIR / f"{safe_name(tgt)}_best.joblib"
+
+def _try_load_json(p: Path) -> Optional[dict]:
+    try:
+        return json.load(open(p, "r"))
+    except Exception:
+        return None
+
+# ---------------- Loaders ----------------
+def load_features_list() -> List[str]:
+    # Prefer explicit file(s)
+    for p in _features_paths():
+        d = _try_load_json(p)
+        if d and "features" in d and isinstance(d["features"], list) and len(d["features"]) > 0:
+            return d["features"]
+
+    # Fallback: infer from any per-target dataset (intersection of features across targets)
+    ds_dir = BASE_DIR / "datasets_per_target"
+    if ds_dir.exists():
+        feats_sets = []
+        for tgt in TARGETS:
+            fp = ds_dir / f"{tgt}.csv"
+            if fp.exists():
+                df = pd.read_csv(fp, nrows=1)
+                cols = [c for c in df.columns if c != tgt and c != "time"]
+                feats_sets.append(set(cols))
+        if feats_sets:
+            feats = sorted(list(set.intersection(*feats_sets))) if len(feats_sets) > 1 else sorted(list(feats_sets[0]))
+            if feats:
+                return feats
+
+    raise FileNotFoundError("Unable to determine feature list. Provide models/features_used.json or datasets_per_target/*.csv")
+
+def load_models_from_disk() -> Tuple[Dict[str, Any], List[str]]:
+    loaded: Dict[str, Any] = {}
+    missing: List[str] = []
+    for tgt in TARGETS:
+        mp = model_path_for_target(tgt)
+        if mp.exists():
+            try:
+                loaded[tgt] = joblib.load(mp)
+            except Exception as e:
+                print(f"[API] Failed to load {mp}: {e}")
+                missing.append(str(mp))
+        else:
+            missing.append(str(mp))
+    return loaded, missing
+
+def init_or_reload():
+    global MODELS, FEATURES, RAW_DF
+    # features
+    try:
+        FEATURES[:] = load_features_list()
+    except Exception as e:
+        print(f"[API] Warning: load_features_list failed: {e}")
+        FEATURES.clear()
+    # models
+    MODELS, missing = load_models_from_disk()
+    # raw
+    try:
+        RAW_DF = load_raw(DATA_DIR)
+    except TypeError:
+        RAW_DF = load_raw()
+    except Exception as e:
+        print(f"[API] Warning: load_raw() failed: {e}")
+        RAW_DF = None
+    return missing
