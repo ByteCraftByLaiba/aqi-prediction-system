@@ -1,6 +1,6 @@
 {
   "lightgbm_regressor": {
-    "timestamp": "2025-12-15T04:08:24.315844Z",
+    "timestamp": "2025-12-16T04:03:09.375562Z",
     "task_type": "regression",
     "scorer": "r2",
     "cv_folds": 3,
@@ -12,7 +12,7 @@
       "k_top_requested": 50,
       "k_top_effective": 50
     },
-    "best_cv_score": 0.8804685747621962,
+    "best_cv_score": 0.8644646600728065,
     "best_params": {},
     "selected_features_after_selection": [
       "num__carbon_monoxide",
@@ -21,9 +21,9 @@
       "num__temperature_2m",
       "num__relative_humidity_2m",
       "num__wind_speed_10m",
-      "num__hour",
       "num__pm2_5_avg_3h",
       "num__temperature_avg_3h",
+      "num__pm2_5_change_rate",
       "num__ozone_change_rate",
       "num__pm_ratio",
       "num__temp_pm2_5",
