@@ -1,6 +1,6 @@
 {
   "catboost_regressor": {
-    "timestamp": "2025-12-19T03:59:39.534905Z",
+    "timestamp": "2025-12-20T03:51:44.764034Z",
     "task_type": "regression",
     "scorer": "r2",
     "cv_folds": 3,
