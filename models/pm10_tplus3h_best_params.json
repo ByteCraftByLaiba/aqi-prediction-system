@@ -1,6 +1,6 @@
 {
   "lightgbm_regressor": {
-    "timestamp": "2026-04-22T05:41:50.411208Z",
+    "timestamp": "2026-04-23T05:44:18.693309Z",
     "task_type": "regression",
     "scorer": "r2",
     "cv_folds": 3,
@@ -12,12 +12,11 @@
       "k_top_requested": 50,
       "k_top_effective": 50
     },
-    "best_cv_score": 0.8355082100755501,
+    "best_cv_score": 0.8215331984341464,
     "best_params": {},
     "selected_features_after_selection": [
       "num__carbon_monoxide",
       "num__nitrogen_dioxide",
-      "num__ozone",
       "num__sulphur_dioxide",
       "num__temperature_2m",
       "num__relative_humidity_2m",
@@ -26,6 +25,7 @@
       "num__temperature_avg_3h",
       "num__pm2_5_change_rate",
       "num__pm10_change_rate",
+      "num__ozone_change_rate",
       "num__pm_ratio",
       "num__temp_pm2_5",
       "num__humidity_pm2_5",
