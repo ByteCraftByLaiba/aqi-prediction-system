@@ -1,18 +1,18 @@
 {
   "lightgbm_regressor": {
-    "timestamp": "2026-07-01T07:26:48.266877Z",
+    "timestamp": "2026-07-02T06:50:38.370009Z",
     "task_type": "regression",
     "scorer": "r2",
-    "cv_folds": 5,
+    "cv_folds": 3,
     "search_n_iter": 1,
-    "searched_on_rows": 10670,
-    "used_subsample_for_search": false,
+    "searched_on_rows": 5000,
+    "used_subsample_for_search": true,
     "preprocess": {
       "variance_threshold": 0.0,
       "k_top_requested": 50,
       "k_top_effective": 50
     },
-    "best_cv_score": 0.918253595248126,
+    "best_cv_score": 0.868941619783829,
     "best_params": {},
     "selected_features_after_selection": [
       "num__carbon_monoxide",
