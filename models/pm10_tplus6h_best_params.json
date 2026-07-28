@@ -1,6 +1,6 @@
 {
   "xgboost_regressor": {
-    "timestamp": "2026-07-27T06:45:32.987254Z",
+    "timestamp": "2026-07-28T06:03:16.273624Z",
     "task_type": "regression",
     "scorer": "r2",
     "cv_folds": 3,
@@ -12,7 +12,7 @@
       "k_top_requested": 50,
       "k_top_effective": 50
     },
-    "best_cv_score": 0.6645439096497675,
+    "best_cv_score": 0.6580742084463871,
     "best_params": {},
     "selected_features_after_selection": [
       "num__carbon_monoxide",
