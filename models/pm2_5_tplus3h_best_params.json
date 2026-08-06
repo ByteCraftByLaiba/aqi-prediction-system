@@ -1,6 +1,6 @@
 {
   "catboost_regressor": {
-    "timestamp": "2026-08-05T05:50:25.088102Z",
+    "timestamp": "2026-08-06T05:54:41.196654Z",
     "task_type": "regression",
     "scorer": "r2",
     "cv_folds": 3,
@@ -12,7 +12,7 @@
       "k_top_requested": 50,
       "k_top_effective": 50
     },
-    "best_cv_score": 0.9342434818702635,
+    "best_cv_score": 0.9325635883742073,
     "best_params": {},
     "selected_features_after_selection": [
       "num__carbon_monoxide",
@@ -28,7 +28,6 @@
       "num__pm_ratio",
       "num__temp_pm2_5",
       "num__humidity_pm2_5",
-      "num__hour_sin",
       "num__month_cos",
       "num__pm2_5_mean_6h",
       "num__pm2_5_std_6h",
@@ -39,6 +38,7 @@
       "num__pm2_5_min_12h",
       "num__pm2_5_max_12h",
       "num__pm10_mean_6h",
+      "num__pm10_std_6h",
       "num__pm10_min_6h",
       "num__pm10_max_6h",
       "num__pm10_mean_12h",
